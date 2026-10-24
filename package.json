@@ -1,0 +1,17 @@
+{
+  "name": "admin-panel",
+  "version": "1.0.0",
+  "description": "WhatsApp-style admin panel for browsing customer conversations from the customer context service",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "mock": "node src/server.js --mock",
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "mongodb": "^6.10.0"
+  }
+}
