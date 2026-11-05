@@ -8,6 +8,7 @@ APP_USER="ec2-user"
 APP_HOME="/home/$APP_USER"
 APP_DIR="$APP_HOME/admin-panel"
 APP_NAME="admin-panel"
+APP_PORT=4001
 
 cd "$APP_DIR"
 
@@ -16,8 +17,9 @@ npm install --omit=dev
 pm2 delete "$APP_NAME" 2>/dev/null || true
 pm2 flush "$APP_NAME" || true
 
-# --cwd matters: dotenv loads .env from the working directory
-pm2 start src/server.js --name "$APP_NAME" --cwd "$APP_DIR" --time --restart-delay 5000
+# --cwd matters: dotenv loads .env from the working directory.
+# PORT set here wins over .env (dotenv does not override existing env vars).
+PORT="$APP_PORT" pm2 start src/server.js --name "$APP_NAME" --cwd "$APP_DIR" --time --restart-delay 5000
 
 pm2 install pm2-logrotate >/dev/null 2>&1 || true
 pm2 set pm2-logrotate:max_size 10M
@@ -26,4 +28,4 @@ pm2 set pm2-logrotate:retain 5
 pm2 save
 sudo env PATH="$PATH:$(dirname "$(which node)")" "$(which pm2)" startup systemd -u "$APP_USER" --hp "$APP_HOME"
 
-echo "Done. Admin panel on port 4000 (or PORT in .env). Logs: pm2 logs $APP_NAME"
+echo "Done. Admin panel on port $APP_PORT. Logs: pm2 logs $APP_NAME"
