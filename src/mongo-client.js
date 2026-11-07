@@ -139,6 +139,21 @@ async function listMessages(storeId, customerId, { limit, before } = {}) {
   };
 }
 
+/*
+ * The store's customer numbers — all of them, or those of `only` that are
+ * really this store's customers. Who a broadcast goes to.
+ */
+async function listCustomerIds(storeId, only = null) {
+  const db = await getDb();
+  const filter = { storeId };
+  if (only) filter.customerId = { $in: only };
+  const docs = await db
+    .collection(CUSTOMERS)
+    .find(filter, { projection: { _id: 0, customerId: 1 } })
+    .toArray();
+  return docs.map((d) => d.customerId);
+}
+
 function toMessage(doc) {
   return {
     id: doc._id.toString(),
@@ -163,5 +178,6 @@ module.exports = {
   DataSourceError,
   listCustomers,
   listMessages,
+  listCustomerIds,
   close
 };

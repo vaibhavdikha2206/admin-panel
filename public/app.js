@@ -12,7 +12,9 @@ const state = {
   messages: [],
   hasMore: false,
   nextBefore: null,
-  loadingOlder: false
+  loadingOlder: false,
+  totalCustomers: 0,
+  tab: "chats" // or "broadcast"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -34,7 +36,29 @@ const els = {
   composer: $("composer"),
   composerInput: $("composer-input"),
   composerError: $("composer-error"),
-  sendBtn: $("send-btn")
+  sendBtn: $("send-btn"),
+  tabs: document.querySelectorAll(".tab"),
+  bcView: $("broadcast-view"),
+  bcCompose: $("bc-compose"),
+  bcTemplate: $("bc-template"),
+  bcTemplateStatus: $("bc-template-status"),
+  bcVariables: $("bc-variables"),
+  bcPreview: $("bc-preview"),
+  bcPreviewText: $("bc-preview-text"),
+  bcPreviewButtons: $("bc-preview-buttons"),
+  bcAllCount: $("bc-all-count"),
+  bcPicker: $("bc-picker"),
+  bcSearch: $("bc-search"),
+  bcList: $("bc-list"),
+  bcError: $("bc-error"),
+  bcSend: $("bc-send"),
+  bcProgress: $("bc-progress"),
+  bcProgressTitle: $("bc-progress-title"),
+  bcBarFill: $("bc-bar-fill"),
+  bcProgressText: $("bc-progress-text"),
+  bcFailures: $("bc-failures"),
+  bcStop: $("bc-stop"),
+  bcNew: $("bc-new")
 };
 
 /* ---------- API ---------- */
@@ -172,8 +196,10 @@ async function loadCustomers({ quiet = false } = {}) {
   try {
     const data = await api(`${storePath()}/conversations?limit=500`);
     state.customers = data.customers || [];
+    state.totalCustomers = data.total ?? state.customers.length;
     renderList();
     if (state.selectedId) renderChatHeader();
+    if (state.tab === "broadcast") renderRecipients();
   } catch (err) {
     if (quiet) return;
     els.listStatus.classList.add("error");
@@ -469,9 +495,7 @@ async function openCustomer(customerId) {
   state.nextBefore = null;
   showComposerError("");
 
-  els.app.classList.add("show-chat");
-  els.empty.hidden = true;
-  els.view.hidden = false;
+  showTab("chats");
   renderList();
   renderChatHeader();
   els.messages.innerHTML = `<div class="messages-status">Loading messages…</div>`;
@@ -576,11 +600,271 @@ async function sendReply() {
 
 function closeChat() {
   state.selectedId = null;
-  els.app.classList.remove("show-chat");
-  els.view.hidden = true;
-  els.empty.hidden = false;
+  showTab(state.tab);
   history.replaceState(null, "", `#${encodeURIComponent(state.storeId)}`);
   renderList();
+}
+
+/* ---------- Tabs ---------- */
+
+// The right pane shows the open chat (or the empty state) on "chats", the
+// broadcast form on "broadcast". At phone width, either one replaces the list.
+function showTab(tab) {
+  state.tab = tab;
+  const broadcasting = tab === "broadcast";
+  for (const b of els.tabs) {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
+  els.bcView.hidden = !broadcasting;
+  els.view.hidden = broadcasting || !state.selectedId;
+  els.empty.hidden = broadcasting || Boolean(state.selectedId);
+  els.app.classList.toggle("show-chat", broadcasting || Boolean(state.selectedId));
+  if (broadcasting) openBroadcast();
+}
+
+/* ---------- Broadcast ---------- */
+
+const bc = {
+  templates: null, // approved templates, from Meta via the server
+  loadingTemplates: false,
+  picked: new Set(), // customer ids, in "Pick customers" mode
+  job: null, // the broadcast being shown
+  pollTimer: null
+};
+
+const BC_POLL_MS = 1500;
+
+function openBroadcast() {
+  renderRecipients();
+  if (!bc.templates && !bc.loadingTemplates) loadTemplates();
+}
+
+function showBcError(message) {
+  els.bcError.textContent = message || "";
+  els.bcError.hidden = !message;
+}
+
+async function loadTemplates() {
+  bc.loadingTemplates = true;
+  els.bcTemplate.disabled = true;
+  els.bcTemplate.innerHTML = `<option>Loading templates…</option>`;
+  els.bcTemplateStatus.textContent = "";
+  try {
+    const data = await api(`${storePath()}/templates`);
+    bc.templates = data.templates || [];
+    renderTemplates();
+  } catch (err) {
+    els.bcTemplate.innerHTML = `<option>Couldn't load templates</option>`;
+    els.bcTemplateStatus.textContent = err.message;
+  } finally {
+    bc.loadingTemplates = false;
+  }
+}
+
+function renderTemplates() {
+  if (!bc.templates.length) {
+    els.bcTemplate.innerHTML = `<option>No approved templates</option>`;
+    els.bcTemplateStatus.textContent = "Create a template in WhatsApp Manager and wait for Meta to approve it.";
+    return;
+  }
+  els.bcTemplate.disabled = false;
+  els.bcTemplate.innerHTML =
+    `<option value="">Choose a template</option>` +
+    bc.templates
+      .map((t, i) => {
+        const label = `${t.name} (${t.language}) · ${t.category.toLowerCase()}`;
+        return t.unsupported
+          ? `<option value="${i}" disabled>${escapeHtml(label)} — not supported: ${escapeHtml(t.unsupported)}</option>`
+          : `<option value="${i}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+  renderTemplateForm();
+}
+
+function selectedTemplate() {
+  const v = els.bcTemplate.value;
+  return v === "" || !bc.templates ? null : bc.templates[Number(v)] || null;
+}
+
+function variableValues() {
+  const values = {};
+  for (const input of els.bcVariables.querySelectorAll("input")) {
+    values[input.dataset.var] = input.value;
+  }
+  return values;
+}
+
+function renderTemplateForm() {
+  const t = selectedTemplate();
+  els.bcVariables.innerHTML = t
+    ? t.variables
+        .map((v) => `
+          <label class="bc-var">{{${escapeHtml(v)}}}
+            <input data-var="${escapeHtml(v)}" maxlength="1024" placeholder="Same for every customer" autocomplete="off">
+          </label>`)
+        .join("")
+    : "";
+  els.bcTemplateStatus.textContent =
+    t && t.category === "MARKETING" ? "Marketing template: Meta charges for each message." : "";
+  renderPreview();
+}
+
+function renderPreview() {
+  const t = selectedTemplate();
+  els.bcPreview.hidden = !t;
+  if (t) {
+    const values = variableValues();
+    const fill = (text) =>
+      (text || "").replace(/\{\{\s*([^}\s]+)\s*\}\}/g, (all, v) => values[v]?.trim() || all);
+    const parts = [];
+    if (t.header) parts.push(`<strong>${escapeHtml(t.header)}</strong>`);
+    parts.push(formatText(fill(t.body)));
+    if (t.footer) parts.push(`<span class="bc-note">${escapeHtml(t.footer)}</span>`);
+    els.bcPreviewText.innerHTML = parts.join("<br><br>");
+    els.bcPreviewButtons.innerHTML = t.buttons
+      .map((b) => `<span class="msg-button">${escapeHtml(b)}</span>`)
+      .join("");
+  }
+  updateSendButton();
+}
+
+const recipientMode = () =>
+  document.querySelector('input[name="bc-recipients"]:checked').value;
+
+const recipientCount = () =>
+  recipientMode() === "all" ? state.totalCustomers : bc.picked.size;
+
+function shownForPicking() {
+  const q = els.bcSearch.value.trim().toLowerCase();
+  return state.customers.filter((c) =>
+    !q ||
+    (c.customerName || "").toLowerCase().includes(q) ||
+    c.customerId.includes(q.replace(/\D/g, "") || q)
+  );
+}
+
+function renderRecipients() {
+  els.bcAllCount.textContent = state.totalCustomers;
+  const picking = recipientMode() === "picked";
+  els.bcPicker.hidden = !picking;
+  if (picking) {
+    const shown = shownForPicking();
+    els.bcList.innerHTML = shown.length
+      ? shown
+          .map((c) => `
+            <li><label>
+              <input type="checkbox" data-id="${escapeHtml(c.customerId)}"${bc.picked.has(c.customerId) ? " checked" : ""}>
+              <span>${escapeHtml(displayName(c))}</span>
+              ${c.customerName ? `<span class="sub">${escapeHtml(formatPhone(c.customerId))}</span>` : ""}
+            </label></li>`)
+          .join("")
+      : `<li class="empty">No customers match your search.</li>`;
+  }
+  updateSendButton();
+}
+
+function updateSendButton() {
+  const t = selectedTemplate();
+  const n = recipientCount();
+  const values = variableValues();
+  const filled = t && t.variables.every((v) => values[v]?.trim());
+  els.bcSend.disabled = !t || !filled || !n || Boolean(bc.job && bc.job.status === "running");
+  els.bcSend.textContent = n ? `Send to ${n} customer${n === 1 ? "" : "s"}` : "Send";
+}
+
+async function sendBroadcast() {
+  const t = selectedTemplate();
+  const n = recipientCount();
+  if (!t || !n) return;
+  const charge = t.category === "MARKETING" ? " Meta charges for each marketing message." : "";
+  if (!confirm(`Send "${t.name}" to ${n} customer${n === 1 ? "" : "s"}? This can't be undone.${charge}`)) return;
+
+  els.bcSend.disabled = true;
+  showBcError("");
+  try {
+    const data = await api(`${storePath()}/broadcasts`, {
+      method: "POST",
+      body: {
+        name: t.name,
+        language: t.language,
+        values: variableValues(),
+        recipients: recipientMode() === "all" ? "all" : [...bc.picked]
+      }
+    });
+    bc.job = data.broadcast;
+    renderJob();
+    pollJob();
+  } catch (err) {
+    showBcError(err.message);
+    updateSendButton();
+  }
+}
+
+function renderJob() {
+  const job = bc.job;
+  els.bcCompose.hidden = Boolean(job);
+  els.bcProgress.hidden = !job;
+  if (!job) return;
+
+  const running = job.status === "running";
+  const done = job.sent + job.failed;
+  els.bcProgressTitle.textContent = running
+    ? "Sending…"
+    : job.status === "done" ? "Broadcast finished" : "Broadcast stopped";
+  els.bcBarFill.style.width = `${job.total ? Math.round((done / job.total) * 100) : 0}%`;
+
+  const lines = [`Sent ${job.sent} of ${job.total}${job.failed ? `, ${job.failed} failed` : ""}.`];
+  if (job.notLogged) lines.push(`${job.notLogged} sent but not saved to the chat history.`);
+  if (job.stopReason) lines.push(job.stopReason);
+  els.bcProgressText.textContent = lines.join(" ");
+
+  els.bcFailures.innerHTML = job.failures
+    .map((f) => `<li>${escapeHtml(formatPhone(f.customerId))}: ${escapeHtml(f.error)}</li>`)
+    .join("");
+  els.bcStop.hidden = !running;
+  els.bcNew.hidden = running;
+}
+
+function pollJob() {
+  clearTimeout(bc.pollTimer);
+  const job = bc.job;
+  if (!job || job.status !== "running") return;
+  bc.pollTimer = setTimeout(async () => {
+    try {
+      const data = await api(`/api/stores/${encodeURIComponent(job.storeId)}/broadcasts/${encodeURIComponent(job.id)}`);
+      if (bc.job?.id !== job.id) return;
+      bc.job = data.broadcast;
+      renderJob();
+      if (bc.job.status !== "running") loadCustomers({ quiet: true });
+    } catch {
+      // Try again on the next tick.
+    }
+    pollJob();
+  }, BC_POLL_MS);
+}
+
+async function stopBroadcast() {
+  const job = bc.job;
+  if (!job || !confirm("Stop sending? Customers already sent to keep their message.")) return;
+  try {
+    const data = await api(
+      `/api/stores/${encodeURIComponent(job.storeId)}/broadcasts/${encodeURIComponent(job.id)}/stop`,
+      { method: "POST" }
+    );
+    bc.job = data.broadcast;
+    renderJob();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function newBroadcast() {
+  clearTimeout(bc.pollTimer);
+  bc.job = null;
+  renderJob();
+  updateSendButton();
 }
 
 /* ---------- Wiring ---------- */
@@ -615,8 +899,51 @@ els.composerInput.addEventListener("keydown", (e) => {
 
 els.composerInput.addEventListener("input", resizeComposer);
 
+for (const b of els.tabs) {
+  b.addEventListener("click", () => showTab(b.dataset.tab));
+}
+
+// Back from the broadcast form (phone width): to the customer list.
+$("bc-back-btn").addEventListener("click", () => {
+  state.tab = "chats";
+  closeChat();
+});
+
+els.bcTemplate.addEventListener("change", renderTemplateForm);
+els.bcVariables.addEventListener("input", renderPreview);
+
+for (const radio of document.querySelectorAll('input[name="bc-recipients"]')) {
+  radio.addEventListener("change", renderRecipients);
+}
+
+els.bcSearch.addEventListener("input", renderRecipients);
+
+els.bcList.addEventListener("change", (e) => {
+  const id = e.target.dataset.id;
+  if (!id) return;
+  if (e.target.checked) bc.picked.add(id);
+  else bc.picked.delete(id);
+  updateSendButton();
+});
+
+$("bc-select-shown").addEventListener("click", () => {
+  for (const c of shownForPicking()) bc.picked.add(c.customerId);
+  renderRecipients();
+});
+
+$("bc-clear").addEventListener("click", () => {
+  bc.picked.clear();
+  renderRecipients();
+});
+
+els.bcSend.addEventListener("click", sendBroadcast);
+els.bcStop.addEventListener("click", stopBroadcast);
+els.bcNew.addEventListener("click", newBroadcast);
+
 els.storeSelect.addEventListener("change", async () => {
   state.storeId = els.storeSelect.value;
+  bc.picked.clear();
+  newBroadcast();
   closeChat();
   await loadCustomers();
 });
@@ -629,7 +956,7 @@ $("refresh-btn").addEventListener("click", async () => {
 $("back-btn").addEventListener("click", closeChat);
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && state.selectedId) closeChat();
+  if (e.key === "Escape" && state.selectedId && state.tab === "chats") closeChat();
 });
 
 $("logout-btn").addEventListener("click", async () => {

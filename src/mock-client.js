@@ -63,7 +63,13 @@ async function listMessages(storeId, customerId, { limit = 50, before } = {}) {
   };
 }
 
+async function listCustomerIds(storeId, only = null) {
+  const ids = dummy.map((c) => c.customerId);
+  return only ? ids.filter((id) => only.includes(id)) : ids;
+}
+
 module.exports = {
   listCustomers,
-  listMessages
+  listMessages,
+  listCustomerIds
 };

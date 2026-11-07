@@ -34,7 +34,10 @@ const MONGODB_DATABASE = process.env.MONGODB_DATABASE || "";
 // number as the bot (see wa-faq-cloud's src/whatsapp.js).
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
-const GRAPH_URL = `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`;
+// Owns the message templates a broadcast picks from.
+const WHATSAPP_BUSINESS_ACCOUNT_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "";
+const GRAPH_BASE = "https://graph.facebook.com/v25.0";
+const GRAPH_URL = `${GRAPH_BASE}/${PHONE_NUMBER_ID}/messages`;
 const GRAPH_TIMEOUT_MS = Number(process.env.GRAPH_TIMEOUT_MS) || 10000;
 
 // The bot (wa-faq-cloud), told to go quiet for a customer an admin has
@@ -58,6 +61,8 @@ module.exports = {
   MONGODB_DATABASE,
   WHATSAPP_TOKEN,
   PHONE_NUMBER_ID,
+  WHATSAPP_BUSINESS_ACCOUNT_ID,
+  GRAPH_BASE,
   GRAPH_URL,
   GRAPH_TIMEOUT_MS,
   BOT_URL,

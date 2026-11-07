@@ -27,6 +27,11 @@
 
       <div class="mock-banner" id="mock-banner" hidden>Showing dummy data (mock mode)</div>
 
+      <nav class="tabs" aria-label="Sections">
+        <button class="tab active" type="button" data-tab="chats" aria-pressed="true">Chats</button>
+        <button class="tab" type="button" data-tab="broadcast" aria-pressed="false">Broadcast</button>
+      </nav>
+
       <div class="search">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5 1.5-1.5-5-5Zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>
         <input id="search" placeholder="Search name or number" autocomplete="off">
@@ -65,6 +70,59 @@
           </button>
         </form>
         <p class="composer-error" id="composer-error" hidden></p>
+      </div>
+
+      <!-- Broadcast: one approved template to many customers -->
+      <div class="broadcast-view" id="broadcast-view" hidden>
+        <header class="chat-header">
+          <button class="icon-btn back-btn" id="bc-back-btn" type="button" aria-label="Back to customers">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2Z"/></svg>
+          </button>
+          <div class="chat-title">
+            <h2>Broadcast</h2>
+            <p>Send an approved template to many customers</p>
+          </div>
+        </header>
+
+        <div class="bc-body">
+          <section class="bc-card" id="bc-compose">
+            <h3>1. Template</h3>
+            <select id="bc-template" aria-label="Template"></select>
+            <p class="bc-note" id="bc-template-status"></p>
+            <div id="bc-variables"></div>
+            <div class="bc-preview" id="bc-preview" hidden>
+              <div class="bubble"><div class="bubble-text" id="bc-preview-text"></div><div class="msg-buttons" id="bc-preview-buttons"></div></div>
+            </div>
+
+            <h3>2. Recipients</h3>
+            <div class="bc-choice">
+              <label><input type="radio" name="bc-recipients" value="all" checked> Whole store (<span id="bc-all-count">0</span>)</label>
+              <label><input type="radio" name="bc-recipients" value="picked"> Pick customers</label>
+            </div>
+            <div class="bc-picker" id="bc-picker" hidden>
+              <div class="bc-picker-bar">
+                <input id="bc-search" placeholder="Search name or number" autocomplete="off" aria-label="Search customers">
+                <button type="button" class="link-btn" id="bc-select-shown">Select shown</button>
+                <button type="button" class="link-btn" id="bc-clear">Clear</button>
+              </div>
+              <ul class="bc-list" id="bc-list"></ul>
+            </div>
+
+            <p class="bc-error" id="bc-error" hidden></p>
+            <button type="button" class="primary-btn" id="bc-send" disabled>Send</button>
+          </section>
+
+          <section class="bc-card" id="bc-progress" hidden>
+            <h3 id="bc-progress-title">Sending…</h3>
+            <div class="bc-bar"><div id="bc-bar-fill"></div></div>
+            <p id="bc-progress-text"></p>
+            <ul class="bc-failures" id="bc-failures"></ul>
+            <div class="bc-actions">
+              <button type="button" class="link-btn" id="bc-stop">Stop</button>
+              <button type="button" class="primary-btn" id="bc-new" hidden>New broadcast</button>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   </div>
