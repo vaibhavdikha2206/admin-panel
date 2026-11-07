@@ -3,7 +3,7 @@
  * panel's own /api routes, which proxy the customer context service.
  */
 const PAGE_SIZE = 50;
-const POLL_MS = 20000;
+const POLL_MS = 8000;
 
 const state = {
   storeId: null,
@@ -511,19 +511,22 @@ async function loadOlder() {
   }
 }
 
-// Picks up new messages in the open chat without losing older pages.
+// Picks up new messages in the open chat without losing older pages. Known
+// ones are replaced too: a bot reply is saved onto the customer's message
+// after it, so the same message comes back with a response.
 async function refreshOpenChat() {
   const customerId = state.selectedId;
   if (!customerId || state.loadingOlder) return;
   try {
     const data = await api(messagesPath());
     if (state.selectedId !== customerId) return;
-    const known = new Set(state.messages.map((m) => m.id));
-    const fresh = (data.messages || []).filter((m) => !known.has(m.id));
-    if (!fresh.length) return;
-    state.messages = [...state.messages, ...fresh].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt)
-    );
+    const latest = new Map((data.messages || []).map((m) => [m.id, m]));
+    const merged = state.messages.map((m) => latest.get(m.id) || m);
+    const known = new Set(merged.map((m) => m.id));
+    for (const m of latest.values()) if (!known.has(m.id)) merged.push(m);
+    merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    if (JSON.stringify(merged) === JSON.stringify(state.messages)) return;
+    state.messages = merged;
     renderMessages({ scroll: "follow" });
   } catch {
     // Polling stays quiet; the next manual refresh shows the error.
