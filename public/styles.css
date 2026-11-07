@@ -433,7 +433,6 @@ button { font: inherit; cursor: pointer; }
 
 .in .chip { background: var(--panel-header); }
 
-.no-reply { font-style: italic; color: var(--text-muted); }
 
 /* ---------- Rich bot messages: photos, buttons, lists, carousels ---------- */
 

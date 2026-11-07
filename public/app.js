@@ -438,16 +438,10 @@ function renderMessages({ scroll = "bottom" } = {}) {
       </div>`;
     }
 
+    // No response: the bot stayed silent (paused for an admin, a reaction, the
+    // daily cap), so there is only the customer's bubble.
     const footer = `${metaChips(m.metadata)}<span>${time}</span>`;
-    const replies = m.response ? botRepliesHtml(m.response, footer) : "";
-    html += replies || `
-      <div class="msg-row out">
-        <div class="bubble">
-          <div class="bubble-label">Bot</div>
-          <div class="bubble-text"><span class="no-reply">No reply recorded</span></div>
-          <div class="bubble-meta">${footer}</div>
-        </div>
-      </div>`;
+    if (m.response) html += botRepliesHtml(m.response, footer);
   }
 
   box.innerHTML = html;
