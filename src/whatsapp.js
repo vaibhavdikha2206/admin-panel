@@ -2,7 +2,10 @@ const {
   WHATSAPP_TOKEN,
   PHONE_NUMBER_ID,
   GRAPH_URL,
-  GRAPH_TIMEOUT_MS
+  GRAPH_TIMEOUT_MS,
+  BOT_URL,
+  BOT_TIMEOUT_MS,
+  CONTEXT_SERVICE_API_KEY
 } = require("./config");
 const contextService = require("./context-client");
 
@@ -65,16 +68,48 @@ async function sendText(storeId, phone, text) {
   const messageId = data.messages?.[0]?.id || null;
   console.log(`[send] admin reply -> ${phone} (${messageId})`);
 
-  // The message already went out; a failed log only means the panel won't show it.
-  let logged = true;
-  try {
-    await contextService.logReply(storeId, phone, text, messageId);
-  } catch (err) {
-    logged = false;
-    console.error(`[send] logging reply to ${phone} failed: ${err.message}`);
-  }
+  // The message already went out; a failure below is reported, not thrown.
+  const [logged, paused] = await Promise.all([
+    contextService.logReply(storeId, phone, text, messageId).then(
+      () => true,
+      (err) => {
+        console.error(`[send] logging reply to ${phone} failed: ${err.message}`);
+        return false;
+      }
+    ),
+    pauseBot(phone)
+  ]);
 
-  return { messageId, logged };
+  return { messageId, logged, paused };
+}
+
+// Tells the bot an admin is handling this customer, so it stops replying to
+// them for a while — as when the owner replies from the WhatsApp Business app.
+async function pauseBot(phone) {
+  if (!BOT_URL) {
+    console.error("[takeover] BOT_URL is not set; the bot was not paused");
+    return false;
+  }
+  try {
+    const res = await fetch(`${BOT_URL}/api/takeover`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(CONTEXT_SERVICE_API_KEY ? { "x-api-key": CONTEXT_SERVICE_API_KEY } : {})
+      },
+      body: JSON.stringify({ phone }),
+      signal: AbortSignal.timeout(BOT_TIMEOUT_MS)
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);
+    }
+    console.log(`[takeover] bot paused for ${phone}`);
+    return true;
+  } catch (err) {
+    console.error(`[takeover] pausing the bot for ${phone} failed: ${err.message}`);
+    return false;
+  }
 }
 
 module.exports = {

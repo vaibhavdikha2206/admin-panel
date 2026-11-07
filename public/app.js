@@ -564,7 +564,10 @@ async function sendReply() {
     if (state.selectedId !== customerId) return;
     els.composerInput.value = "";
     resizeComposer();
-    if (!sent.logged) showComposerError("Sent, but it couldn't be saved to the chat history.");
+    const problems = [];
+    if (!sent.logged) problems.push("it couldn't be saved to the chat history");
+    if (!sent.paused) problems.push("the bot wasn't paused and may still reply");
+    if (problems.length) showComposerError(`Sent, but ${problems.join(" and ")}.`);
     await refreshOpenChat();
     els.messages.scrollTop = els.messages.scrollHeight;
   } catch (err) {

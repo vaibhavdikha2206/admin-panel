@@ -37,6 +37,11 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
 const GRAPH_URL = `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`;
 const GRAPH_TIMEOUT_MS = Number(process.env.GRAPH_TIMEOUT_MS) || 10000;
 
+// The bot (wa-faq-cloud), told to go quiet for a customer an admin has
+// replied to. Authenticated with CONTEXT_SERVICE_API_KEY.
+const BOT_URL = (process.env.BOT_URL || "").replace(/\/+$/, "");
+const BOT_TIMEOUT_MS = Number(process.env.BOT_TIMEOUT_MS) || 5000;
+
 module.exports = {
   PORT,
   CONTEXT_SERVICE_URL,
@@ -54,5 +59,7 @@ module.exports = {
   WHATSAPP_TOKEN,
   PHONE_NUMBER_ID,
   GRAPH_URL,
-  GRAPH_TIMEOUT_MS
+  GRAPH_TIMEOUT_MS,
+  BOT_URL,
+  BOT_TIMEOUT_MS
 };
