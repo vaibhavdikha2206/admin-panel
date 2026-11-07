@@ -566,6 +566,45 @@ a.msg-button:hover { background: rgba(127, 127, 127, 0.08); }
 
 .messages-status.error { color: var(--danger); }
 
+/* ---------- Reply box ---------- */
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--panel-header);
+  border-left: 1px solid var(--border);
+  flex: none;
+}
+
+#composer-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  padding: 10px 12px;
+  font: inherit;
+  line-height: 20px;
+  color: var(--text);
+  background: var(--panel);
+  border: 0;
+  border-radius: 8px;
+  resize: none;
+  outline: none;
+}
+
+.send-btn { color: var(--green); }
+.send-btn:disabled { opacity: 0.5; }
+
+.composer-error {
+  margin: 0;
+  padding: 4px 16px 8px;
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--panel-header);
+  border-left: 1px solid var(--border);
+}
+
 /* ---------- Phone width: one pane at a time ---------- */
 
 @media (max-width: 760px) {

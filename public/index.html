@@ -57,6 +57,14 @@
         </header>
 
         <div class="messages" id="messages"></div>
+
+        <form class="composer" id="composer">
+          <textarea id="composer-input" rows="1" maxlength="4096" placeholder="Type a reply" aria-label="Reply"></textarea>
+          <button class="icon-btn send-btn" id="send-btn" type="submit" title="Send" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M2 21 23 12 2 3v7l15 2-15 2v7Z"/></svg>
+          </button>
+        </form>
+        <p class="composer-error" id="composer-error" hidden></p>
       </div>
     </main>
   </div>

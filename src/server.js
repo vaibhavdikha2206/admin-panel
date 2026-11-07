@@ -4,6 +4,7 @@ const config = require("./config");
 const auth = require("./auth");
 const mongoClient = require("./mongo-client");
 const mockClient = require("./mock-client");
+const whatsapp = require("./whatsapp");
 
 const { DataSourceError } = mongoClient;
 const contextService = config.MOCK_DATA ? mockClient : mongoClient;
@@ -99,7 +100,43 @@ app.get(
   }
 );
 
+const MAX_REPLY_LENGTH = 4096; // WhatsApp's limit for a text message
+
+app.post(
+  "/api/stores/:storeId/customers/:customerId/messages",
+  async (req, res, next) => {
+    try {
+      const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+      if (!text) {
+        return res.status(400).json({ success: false, error: "Message is empty" });
+      }
+      if (text.length > MAX_REPLY_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          error: `Message is longer than ${MAX_REPLY_LENGTH} characters`
+        });
+      }
+      if (!/^\d{6,15}$/.test(req.params.customerId)) {
+        return res.status(400).json({ success: false, error: "Not a WhatsApp number" });
+      }
+      if (config.MOCK_DATA) {
+        return res.status(400).json({ success: false, error: "Sending is off in mock mode" });
+      }
+
+      const sent = await whatsapp.sendText(req.params.storeId, req.params.customerId, text);
+      console.log(`[send] by ${req.user}`);
+      res.json({ success: true, ...sent });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 app.use((err, req, res, next) => {
+  if (err instanceof whatsapp.SendError) {
+    return res.status(err.status).json({ success: false, error: err.message });
+  }
+
   if (err instanceof DataSourceError) {
     console.error(`[mongodb] ${err.message}`);
     return res.status(err.status).json({ success: false, error: err.message });

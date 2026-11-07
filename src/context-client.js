@@ -69,8 +69,39 @@ function listMessages(storeId, customerId, { limit, before } = {}) {
   );
 }
 
+async function post(path, body) {
+  if (!CONTEXT_SERVICE_URL) {
+    throw new ContextServiceError("CONTEXT_SERVICE_URL is not set", 503);
+  }
+
+  const res = await fetch(`${CONTEXT_SERVICE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(CONTEXT_SERVICE_API_KEY ? { "x-api-key": CONTEXT_SERVICE_API_KEY } : {})
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(CONTEXT_SERVICE_TIMEOUT_MS)
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ContextServiceError(`HTTP ${res.status} ${text.slice(0, 500)}`, res.status);
+  }
+  return res.json().catch(() => null);
+}
+
+// A reply sent from the panel: an exchange of its own with no customer message.
+function logReply(storeId, customerId, text, messageId) {
+  return post(
+    `/v1/stores/${encodeURIComponent(storeId)}/customers/${encodeURIComponent(customerId)}/messages`,
+    { response: text, ...(messageId ? { messageId } : {}) }
+  );
+}
+
 module.exports = {
   ContextServiceError,
   listCustomers,
-  listMessages
+  listMessages,
+  logReply
 };

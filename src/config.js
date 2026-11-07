@@ -30,6 +30,13 @@ const MOCK_DATA = process.argv.includes("--mock") || NODE_ENV === "mock";
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const MONGODB_DATABASE = process.env.MONGODB_DATABASE || "";
 
+// Replies typed in the panel go out through Meta's Graph API, from the same
+// number as the bot (see wa-faq-cloud's src/whatsapp.js).
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
+const GRAPH_URL = `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`;
+const GRAPH_TIMEOUT_MS = Number(process.env.GRAPH_TIMEOUT_MS) || 10000;
+
 module.exports = {
   PORT,
   CONTEXT_SERVICE_URL,
@@ -43,5 +50,9 @@ module.exports = {
   NODE_ENV,
   MOCK_DATA,
   MONGODB_URI,
-  MONGODB_DATABASE
+  MONGODB_DATABASE,
+  WHATSAPP_TOKEN,
+  PHONE_NUMBER_ID,
+  GRAPH_URL,
+  GRAPH_TIMEOUT_MS
 };

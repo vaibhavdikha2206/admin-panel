@@ -30,20 +30,31 @@ const els = {
   chatAvatar: $("chat-avatar"),
   chatName: $("chat-name"),
   chatSub: $("chat-sub"),
-  messages: $("messages")
+  messages: $("messages"),
+  composer: $("composer"),
+  composerInput: $("composer-input"),
+  composerError: $("composer-error"),
+  sendBtn: $("send-btn")
 };
 
 /* ---------- API ---------- */
 
-async function api(path) {
-  const res = await fetch(path, { headers: { Accept: "application/json" } });
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {})
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
   if (res.status === 401) {
     location.href = "/login";
     throw new Error("Not logged in");
   }
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
-  return body;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
 }
 
 const storePath = () => `/api/stores/${encodeURIComponent(state.storeId)}`;
@@ -462,6 +473,7 @@ async function openCustomer(customerId) {
   state.messages = [];
   state.hasMore = false;
   state.nextBefore = null;
+  showComposerError("");
 
   els.app.classList.add("show-chat");
   els.empty.hidden = true;
@@ -524,6 +536,44 @@ async function refreshOpenChat() {
   }
 }
 
+/* ---------- Reply box ---------- */
+
+function showComposerError(message) {
+  els.composerError.textContent = message || "";
+  els.composerError.hidden = !message;
+}
+
+// Grows with the text, up to the CSS max-height.
+function resizeComposer() {
+  els.composerInput.style.height = "auto";
+  els.composerInput.style.height = `${els.composerInput.scrollHeight}px`;
+}
+
+async function sendReply() {
+  const text = els.composerInput.value.trim();
+  const customerId = state.selectedId;
+  if (!text || !customerId || els.sendBtn.disabled) return;
+
+  els.sendBtn.disabled = true;
+  showComposerError("");
+  try {
+    const sent = await api(
+      `${storePath()}/customers/${encodeURIComponent(customerId)}/messages`,
+      { method: "POST", body: { text } }
+    );
+    if (state.selectedId !== customerId) return;
+    els.composerInput.value = "";
+    resizeComposer();
+    if (!sent.logged) showComposerError("Sent, but it couldn't be saved to the chat history.");
+    await refreshOpenChat();
+    els.messages.scrollTop = els.messages.scrollHeight;
+  } catch (err) {
+    showComposerError(err.message);
+  } finally {
+    els.sendBtn.disabled = false;
+  }
+}
+
 function closeChat() {
   state.selectedId = null;
   els.app.classList.remove("show-chat");
@@ -549,6 +599,21 @@ els.list.addEventListener("keydown", (e) => {
 });
 
 els.search.addEventListener("input", renderList);
+
+els.composer.addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendReply();
+});
+
+// Enter sends, Shift+Enter is a new line.
+els.composerInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    sendReply();
+  }
+});
+
+els.composerInput.addEventListener("input", resizeComposer);
 
 els.storeSelect.addEventListener("change", async () => {
   state.storeId = els.storeSelect.value;
